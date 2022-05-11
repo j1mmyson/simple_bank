@@ -1,0 +1,38 @@
+package util
+
+import (
+	"math/rand"
+	"time"
+)
+
+const alphabet = "abcdefghijklmnopqrstuvwxyz"
+
+func init() {
+	rand.Seed(time.Now().UnixNano())
+}
+
+func RandomInt(min, max int64) int64 {
+	return rand.Int63n(max-min+1) + min
+}
+
+func RandomString(n int) string {
+	b := make([]byte, n)
+	for i := range b {
+		b[i] = alphabet[rand.Intn(len(alphabet))]
+	}
+	return string(b)
+}
+
+func RandomOwner() string {
+	return RandomString(6)
+}
+
+func RandomMoney() int64 {
+	return RandomInt(0, 10000)
+}
+
+func RandomCurrency() string {
+	currencies := []string{"KRW", "USD", "EUR"}
+
+	return currencies[rand.Intn(len(currencies))]
+}
