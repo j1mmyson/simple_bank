@@ -1,2 +1,3 @@
 ### Todo
-- [] implement update, delete account router
+- [x] update account
+- [ ] delete account

@@ -2,7 +2,6 @@ package api
 
 import (
 	"database/sql"
-	"fmt"
 	db "simple_bank/db/sqlc"
 	"strconv"
 
@@ -89,8 +88,6 @@ func (server *Server) listAccounts(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 
-	fmt.Println(req)
-
 	arg := db.GetAccountsParams{
 		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
@@ -102,4 +99,43 @@ func (server *Server) listAccounts(ctx *fiber.Ctx) error {
 	}
 
 	return ctx.JSON(accounts)
+}
+
+type updateAccountReq struct {
+	ID      int64 `validate:"required,number,min=1"`
+	Balance int64 `json:"balance" validate:"required,number,min=0"`
+}
+
+func (server *Server) updateAccount(ctx *fiber.Ctx) error {
+	var err error
+	req := new(updateAccountReq)
+
+	if err = ctx.BodyParser(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	req.ID, err = strconv.ParseInt(ctx.Params("id"), 10, 64)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	validate := validator.New()
+	if err = validate.Struct(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	arg := db.UpdateAccountParams{
+		ID:      req.ID,
+		Balance: req.Balance,
+	}
+	account, err := server.store.UpdateAccount(ctx.Context(), arg)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ctx.Status(fiber.StatusNotFound).JSON(errorResponse(err))
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+	}
+
+	return ctx.JSON(account)
 }
