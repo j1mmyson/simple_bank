@@ -1,8 +1,10 @@
 package api
 
 import (
-	"net/http"
+	"database/sql"
+	"fmt"
 	db "simple_bank/db/sqlc"
+	"strconv"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -18,12 +20,12 @@ func (server *Server) createAccount(ctx *fiber.Ctx) error {
 	req := new(createAccountReq)
 
 	if err := ctx.BodyParser(req); err != nil {
-		return ctx.Status(http.StatusBadRequest).JSON(fiber.Map{"err": err.Error()})
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 
 	validate := validator.New()
 	if err := validate.Struct(req); err != nil {
-		return ctx.Status(fiber.StatusBadRequest).JSON(fiber.Map{"err": err.Error()})
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 
 	arg := db.CreateAccountParams{
@@ -34,8 +36,70 @@ func (server *Server) createAccount(ctx *fiber.Ctx) error {
 
 	account, err := server.store.CreateAccount(ctx.Context(), arg)
 	if err != nil {
-		return ctx.Status(http.StatusInternalServerError).JSON(fiber.Map{"err": err.Error()})
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 
 	return ctx.JSON(account)
+}
+
+type getAccountReq struct {
+	ID int64 `validate:"required,number"`
+}
+
+func (server *Server) getAccount(ctx *fiber.Ctx) error {
+	var err error
+	req := new(getAccountReq)
+
+	req.ID, err = strconv.ParseInt(ctx.Params("id"), 10, 64)
+	if err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	validate := validator.New()
+	if err = validate.Struct(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	account, err := server.store.GetAccount(ctx.Context(), req.ID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return ctx.Status(fiber.StatusNotFound).JSON(errorResponse(err))
+		}
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+	}
+
+	return ctx.JSON(account)
+}
+
+type listAccountsReq struct {
+	PageID   int32 `query:"page_id" validate:"required,number,min=1"`
+	PageSize int32 `query:"page_size" validate:"required,number,min=5,max=10"`
+}
+
+func (server *Server) listAccounts(ctx *fiber.Ctx) error {
+	req := new(listAccountsReq)
+
+	if err := ctx.QueryParser(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	validate := validator.New()
+	if err := validate.Struct(req); err != nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
+	}
+
+	fmt.Println(req)
+
+	arg := db.GetAccountsParams{
+		Limit:  req.PageSize,
+		Offset: (req.PageID - 1) * req.PageSize,
+	}
+
+	accounts, err := server.store.GetAccounts(ctx.Context(), arg)
+	if err != nil {
+		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
+	}
+
+	return ctx.JSON(accounts)
 }

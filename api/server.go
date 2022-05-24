@@ -22,6 +22,8 @@ func NewServer(store *db.Store) *Server {
 	})
 
 	router.Post("/accounts", server.createAccount)
+	router.Get("/account/:id", server.getAccount)
+	router.Get("/accounts", server.listAccounts)
 
 	server.router = router
 	return server
@@ -29,4 +31,10 @@ func NewServer(store *db.Store) *Server {
 
 func (server *Server) Start(address string) error {
 	return server.router.Listen(address)
+}
+
+func errorResponse(err error) *fiber.Map {
+	return &fiber.Map{
+		"error": err.Error(),
+	}
 }
