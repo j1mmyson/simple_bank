@@ -2,11 +2,13 @@ package api
 
 import (
 	"database/sql"
+	"log"
 	db "simple_bank/db/sqlc"
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/lib/pq"
 )
 
 type createAccountReq struct {
@@ -35,6 +37,13 @@ func (server *Server) createAccount(ctx *fiber.Ctx) error {
 
 	account, err := server.store.CreateAccount(ctx.Context(), arg)
 	if err != nil {
+		if pqErr, ok := err.(*pq.Error); ok {
+			log.Println(pqErr.Code.Name())
+			switch pqErr.Code.Name() {
+			case "foreign_key_violation", "unique_violation":
+				return ctx.Status(fiber.StatusForbidden).JSON(errorResponse(err))
+			}
+		}
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 
