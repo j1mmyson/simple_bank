@@ -20,6 +20,7 @@ func NewServer(store *db.Store) *Server {
 	router.Get("/ping", func(c *fiber.Ctx) error {
 		return c.JSON("pong")
 	})
+	router.Post("/users", server.createUser)
 
 	router.Post("/accounts", server.createAccount)
 	router.Get("/account/:id", server.getAccount)
