@@ -1,19 +1,55 @@
 package api
 
 import (
+	"fmt"
 	db "simple_bank/db/sqlc"
+	"simple_bank/token"
+	"simple_bank/util"
 
 	"github.com/gofiber/fiber/v2"
 	"github.com/gofiber/fiber/v2/middleware/logger"
 )
 
 type Server struct {
-	store  *db.Store
-	router *fiber.App
+	config     util.Config
+	store      *db.Store
+	router     *fiber.App
+	tokenMaker token.Maker
 }
 
-func NewServer(store *db.Store) *Server {
-	server := &Server{store: store}
+func NewServer(config util.Config, store *db.Store) (*Server, error) {
+	tokenMaker, err := token.NewJWTMaker(config.TokenSymmetricKey)
+	if err != nil {
+		return nil, fmt.Errorf("cannot create token maker: %w", err)
+	}
+
+	server := &Server{
+		config:     config,
+		store:      store,
+		tokenMaker: tokenMaker,
+	}
+	// router := fiber.New()
+
+	// router.Use(logger.New())
+	// router.Get("/ping", func(c *fiber.Ctx) error {
+	// 	return c.JSON("pong")
+	// })
+	// router.Post("/users", server.createUser)
+	// router.Post("/users/login", server.loginUser)
+
+	// router.Post("/accounts", server.createAccount)
+	// router.Get("/account/:id", server.getAccount)
+	// router.Get("/accounts", server.listAccounts)
+	// router.Put("/account/:id", server.updateAccount)
+	// router.Post("/transfers", server.createTransfer)
+
+	// server.router = router
+	server.setupRouter()
+
+	return server, nil
+}
+
+func (server *Server) setupRouter() {
 	router := fiber.New()
 
 	router.Use(logger.New())
@@ -21,6 +57,7 @@ func NewServer(store *db.Store) *Server {
 		return c.JSON("pong")
 	})
 	router.Post("/users", server.createUser)
+	router.Post("/users/login", server.loginUser)
 
 	router.Post("/accounts", server.createAccount)
 	router.Get("/account/:id", server.getAccount)
@@ -29,7 +66,7 @@ func NewServer(store *db.Store) *Server {
 	router.Post("/transfers", server.createTransfer)
 
 	server.router = router
-	return server
+
 }
 
 func (server *Server) Start(address string) error {
