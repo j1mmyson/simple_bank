@@ -90,7 +90,7 @@ type loginUserResponse struct {
 }
 
 func (server *Server) loginUser(ctx *fiber.Ctx) error {
-	var req loginUserRequest
+	req := new(loginUserRequest)
 
 	if err := ctx.BodyParser(req); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))

@@ -2,17 +2,20 @@ package api
 
 import (
 	"database/sql"
+	"errors"
 	"log"
 	db "simple_bank/db/sqlc"
+	"simple_bank/token"
 	"strconv"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
+	"github.com/google/uuid"
 	"github.com/lib/pq"
 )
 
 type createAccountReq struct {
-	Owner    string `json:"owner" validate:"required"`
+	// Owner    string `json:"owner" validate:"required"`
 	Currency string `json:"currency" validate:"required,oneof=KRW USD EUR"`
 }
 
@@ -29,8 +32,14 @@ func (server *Server) createAccount(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 
+	authPayload := ctx.Locals(authorizationPayloadKey).(*token.Payload)
+
+	if authPayload.ID == uuid.Nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(errors.New("invalid token payload")))
+	}
+
 	arg := db.CreateAccountParams{
-		Owner:    req.Owner,
+		Owner:    authPayload.Username,
 		Currency: req.Currency,
 		Balance:  0,
 	}
@@ -77,6 +86,12 @@ func (server *Server) getAccount(ctx *fiber.Ctx) error {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}
 
+	authPayload := ctx.Locals(authorizationPayloadKey).(*token.Payload)
+
+	if authPayload.Username == account.Owner {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(errors.New("account doesn't belongs to the authenticated user")))
+	}
+
 	return ctx.JSON(account)
 }
 
@@ -96,13 +111,19 @@ func (server *Server) listAccounts(ctx *fiber.Ctx) error {
 	if err := validate.Struct(req); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
+	authPayload := ctx.Locals(authorizationPayloadKey).(*token.Payload)
 
-	arg := db.GetAccountsParams{
+	if authPayload.ID == uuid.Nil {
+		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(errors.New("invalid token payload")))
+	}
+
+	arg := db.ListAccountsParams{
+		Owner:  authPayload.Username,
 		Limit:  req.PageSize,
 		Offset: (req.PageID - 1) * req.PageSize,
 	}
 
-	accounts, err := server.store.GetAccounts(ctx.Context(), arg)
+	accounts, err := server.store.ListAccounts(ctx.Context(), arg)
 	if err != nil {
 		return ctx.Status(fiber.StatusInternalServerError).JSON(errorResponse(err))
 	}

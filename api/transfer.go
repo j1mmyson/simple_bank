@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	db "simple_bank/db/sqlc"
+	"simple_bank/token"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/gofiber/fiber/v2"
@@ -28,13 +29,20 @@ func (server *Server) createTransfer(ctx *fiber.Ctx) error {
 	if err := validate.Struct(req); err != nil {
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
-
-	if !server.validateAccount(ctx, req.FromAccountID, req.Currency) {
+	fromAccount, valid := server.validateAccount(ctx, req.FromAccountID, req.Currency)
+	if !valid {
 		err := errors.New("invalid from_account currency")
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
 
-	if !server.validateAccount(ctx, req.ToAccountID, req.Currency) {
+	authPayload := ctx.Locals(authorizationPayloadKey).(*token.Payload)
+
+	if authPayload.Username == fromAccount.Owner {
+		return ctx.Status(fiber.StatusUnauthorized).JSON(errorResponse(errors.New("fromAccount doesn't belongs to the authenticated user")))
+	}
+
+	_, valid = server.validateAccount(ctx, req.ToAccountID, req.Currency)
+	if !valid {
 		err := errors.New("invalid to_account currency")
 		return ctx.Status(fiber.StatusBadRequest).JSON(errorResponse(err))
 	}
@@ -53,23 +61,23 @@ func (server *Server) createTransfer(ctx *fiber.Ctx) error {
 	return ctx.JSON(result)
 }
 
-func (server *Server) validateAccount(ctx *fiber.Ctx, accountID int64, currency string) bool {
+func (server *Server) validateAccount(ctx *fiber.Ctx, accountID int64, currency string) (db.Account, bool) {
 	account, err := server.store.GetAccount(ctx.Context(), accountID)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			// ctx.JSON()
-			return false
+			return account, false
 		}
 
-		return false
+		return account, false
 	}
 
 	if account.Currency != currency {
 		err := fmt.Errorf("account [%d] currency mismatch: %s vs %s", account.ID, account.Currency, currency)
 		if err != nil {
-			return false
+			return account, false
 		}
 	}
 
-	return true
+	return account, true
 }
